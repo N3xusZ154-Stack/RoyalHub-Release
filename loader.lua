@@ -3,11 +3,29 @@ repeat task.wait() until game:IsLoaded()
 
 local WORKER_URL = "https://royalhub-auth.zayro154stack.workers.dev"
 local EXPECTED_GAME_ID = 994732206
+local LOGO_URL = "https://raw.githubusercontent.com/N3xusZ154-Stack/RoyalHub-Release/main/assets/royalhub-logo.png"
+local GET_KEY_URL = WORKER_URL .. "/get-key"
 
 local Environment = getgenv()
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
+local RequestedLanguage = Environment.ROYALHUB_LANGUAGE
+if RequestedLanguage == nil and type(isfile) == "function" and type(readfile) == "function" and isfile("RoyalHub/settings.json") then
+    pcall(function()
+        local saved = HttpService:JSONDecode(readfile("RoyalHub/settings.json"))
+        local savedSettings = type(saved) == "table" and (saved.settings or saved) or nil
+        if type(savedSettings) == "table" and savedSettings.language == "Português" then
+            RequestedLanguage = "pt-BR"
+        end
+    end)
+end
+local Language = tostring(RequestedLanguage or "en"):lower()
+local IsPortuguese = Language == "pt" or Language:sub(1, 3) == "pt-"
+
+local function L(english, portuguese)
+    return IsPortuguese and portuguese or english
+end
 
 local requestFn = rawget(Environment, "request") or rawget(Environment, "http_request")
 if type(requestFn) ~= "function" then
@@ -22,7 +40,7 @@ if type(requestFn) ~= "function" then
         requestFn = rawget(synLibrary, "request")
     end
 end
-assert(type(requestFn) == "function", "[RoyalHub] HTTP request não suportado")
+assert(type(requestFn) == "function", L("[RoyalHub] HTTP requests are not supported by this executor", "[RoyalHub] Requisições HTTP não são suportadas por este executor"))
 
 local gethuiFn = rawget(Environment, "gethui")
 local UiParent = game:GetService("CoreGui")
@@ -59,7 +77,7 @@ local function loadWindUI()
             lastError = tostring(source)
         end
     end
-    error("[RoyalHub] Não foi possível carregar a WindUI: " .. lastError)
+    error(L("[RoyalHub] WindUI could not be loaded: ", "[RoyalHub] Não foi possível carregar a WindUI: ") .. lastError)
 end
 
 local function normalizeKey(value)
@@ -94,13 +112,13 @@ local function authorizeKey(rawKey)
     lastValidationError = nil
 
     if key == "" then
-        lastValidationError = "Key vazia"
+        lastValidationError = L("Enter a key", "Digite uma key")
         return false
     end
 
     if game.GameId ~= EXPECTED_GAME_ID then
         lastValidationError = string.format(
-            "Jogo não suportado | GameId: %d | PlaceId: %d",
+            L("Unsupported game | GameId: %d | PlaceId: %d", "Jogo não suportado | GameId: %d | PlaceId: %d"),
             game.GameId,
             game.PlaceId
         )
@@ -126,13 +144,13 @@ local function authorizeKey(rawKey)
     end)
 
     if not requestOk then
-        lastValidationError = "Falha ao contatar o servidor de autorização"
+        lastValidationError = L("Could not contact the authorization server", "Falha ao contatar o servidor de autorização")
         return false
     end
 
     local auth, statusCode = decodeResponse(authResponse)
     if statusCode < 200 or statusCode >= 300 or not auth or auth.ok ~= true then
-        local serverError = auth and tostring(auth.error or "Autorização negada") or "Resposta inválida do servidor"
+        local serverError = auth and tostring(auth.error or L("Authorization denied", "Autorização negada")) or L("Invalid server response", "Resposta inválida do servidor")
         lastValidationError = string.format(
             "%s | GameId: %d | PlaceId: %d",
             serverError,
@@ -144,7 +162,7 @@ local function authorizeKey(rawKey)
 
     local session = tostring(auth.session or "")
     if #session < 32 then
-        lastValidationError = "Sessão de autorização inválida"
+        lastValidationError = L("Invalid authorization session", "Sessão de autorização inválida")
         return false
     end
 
@@ -159,21 +177,21 @@ local function authorizeKey(rawKey)
     end)
 
     if not buildResponseOk or type(buildResponse) ~= "table" then
-        lastValidationError = "Build privado indisponível"
+        lastValidationError = L("Private build unavailable", "Build privado indisponível")
         return false
     end
 
     local buildStatus = tonumber(buildResponse.StatusCode or buildResponse.Status or 0) or 0
     local source = tostring(buildResponse.Body or buildResponse.body or "")
     if buildStatus < 200 or buildStatus >= 300 or #source < 1000 then
-        lastValidationError = "Build privado indisponível"
+        lastValidationError = L("Private build unavailable", "Build privado indisponível")
         return false
     end
 
     local chunk, compileError = loadstring(source, "@RoyalHub-private")
     if not chunk then
         warn("[RoyalHub] Build compilation failed: " .. tostring(compileError))
-        lastValidationError = "Falha ao compilar o build privado"
+        lastValidationError = L("Private build compilation failed", "Falha ao compilar o build privado")
         return false
     end
 
@@ -189,8 +207,8 @@ WindUI:SetNotificationLower(true)
 
 local GateWindow = WindUI:CreateWindow({
     Title = "RoyalHub",
-    Icon = "shield-check",
-    Author = "Secure Access",
+    Icon = LOGO_URL,
+    Author = L("Secure Access", "Acesso seguro"),
     Folder = "RoyalHubKeyGate",
     Size = UDim2.fromOffset(500, 360),
     Theme = "Dark",
@@ -202,16 +220,21 @@ local GateWindow = WindUI:CreateWindow({
         Anonymous = true,
     },
     KeySystem = {
-        Title = "RoyalHub Access",
-        Note = "Enter your 1-day RoyalHub key to continue.",
+        Title = L("RoyalHub Access", "Acesso RoyalHub"),
+        Note = L("Enter your 1-day key to continue. Use Get Key if you do not have one.", "Digite sua key de 1 dia para continuar. Use Get Key caso ainda não tenha uma."),
+        Thumbnail = {
+            Image = LOGO_URL,
+            Title = "RoyalHub",
+        },
+        URL = GET_KEY_URL,
         SaveKey = false,
         KeyValidator = function(key)
             local valid = authorizeKey(key)
             if not valid then
                 pcall(function()
                     WindUI:Notify({
-                        Title = "Access denied",
-                        Content = lastValidationError or "Invalid key",
+                        Title = L("Access denied", "Acesso negado"),
+                        Content = lastValidationError or L("Invalid key", "Key inválida"),
                         Icon = "circle-alert",
                         Duration = 6,
                     })
@@ -222,14 +245,17 @@ local GateWindow = WindUI:CreateWindow({
     },
 })
 
-assert(finalChunk and finalAuth and finalKey, "[RoyalHub] A autenticação não foi concluída")
+assert(finalChunk and finalAuth and finalKey, L("[RoyalHub] Authentication was not completed", "[RoyalHub] A autenticação não foi concluída"))
 
 Environment.ROYALHUB_KEY = finalKey
+Environment.ROYALHUB_LOGO_URL = LOGO_URL
+Environment.ROYALHUB_LANGUAGE = IsPortuguese and "pt-BR" or "en"
 Environment.__ROYALHUB_LICENSE = {
     expiresAt = tonumber(finalAuth.licenseExpiresAt),
     sessionExpiresAt = tonumber(finalAuth.sessionExpiresAt),
     gameId = tonumber(finalAuth.gameId),
     placeId = tonumber(finalAuth.placeId),
+    language = Environment.ROYALHUB_LANGUAGE,
 }
 
 pcall(function()
@@ -237,5 +263,5 @@ pcall(function()
 end)
 
 local ok, result = pcall(finalChunk)
-assert(ok, "[RoyalHub] Erro em tempo de execução: " .. tostring(result))
+assert(ok, L("[RoyalHub] Runtime error: ", "[RoyalHub] Erro em tempo de execução: ") .. tostring(result))
 return result
