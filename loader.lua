@@ -40,7 +40,7 @@ if type(requestFn) ~= "function" then
         requestFn = rawget(synLibrary, "request")
     end
 end
-assert(type(requestFn) == "function", L("[RoyalHub] HTTP requests are not supported by this executor", "[RoyalHub] Requisições HTTP não são suportadas por este executor"))
+assert(type(requestFn) == "function", L("RoyalHub HTTP requests are not supported by this executor", "RoyalHub Requisições HTTP não são suportadas por este executor"))
 
 local gethuiFn = rawget(Environment, "gethui")
 local UiParent = game:GetService("CoreGui")
@@ -77,7 +77,7 @@ local function loadWindUI()
             lastError = tostring(source)
         end
     end
-    error(L("[RoyalHub] WindUI could not be loaded: ", "[RoyalHub] Não foi possível carregar a WindUI: ") .. lastError)
+    error(L("RoyalHub WindUI could not be loaded: ", "RoyalHub Não foi possível carregar a WindUI: ") .. lastError)
 end
 
 local function normalizeKey(value)
@@ -190,7 +190,7 @@ local function authorizeKey(rawKey)
 
     local chunk, compileError = loadstring(source, "@RoyalHub-private")
     if not chunk then
-        warn("[RoyalHub] Build compilation failed: " .. tostring(compileError))
+        warn("RoyalHub Build compilation failed: " .. tostring(compileError))
         lastValidationError = L("Private build compilation failed", "Falha ao compilar o build privado")
         return false
     end
@@ -245,7 +245,7 @@ local GateWindow = WindUI:CreateWindow({
     },
 })
 
-assert(finalChunk and finalAuth and finalKey, L("[RoyalHub] Authentication was not completed", "[RoyalHub] A autenticação não foi concluída"))
+assert(finalChunk and finalAuth and finalKey, L("RoyalHub Authentication was not completed", "RoyalHub A autenticação não foi concluída"))
 
 Environment.ROYALHUB_KEY = finalKey
 Environment.ROYALHUB_LOGO_URL = LOGO_URL
@@ -263,5 +263,5 @@ pcall(function()
 end)
 
 local ok, result = pcall(finalChunk)
-assert(ok, L("[RoyalHub] Runtime error: ", "[RoyalHub] Erro em tempo de execução: ") .. tostring(result))
+assert(ok, L("RoyalHub Runtime error: ", "RoyalHub Erro em tempo de execução: ") .. tostring(result))
 return result
